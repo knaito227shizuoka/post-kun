@@ -2,7 +2,7 @@
 
   <!--
     オフライン環境で xunit / MSTest のテスト SDK が NuGet 復元できないため、
-    依存パッケージゼロの自前ランナーにしている(open-folder と同じ方針)。
+    依存パッケージゼロの自前ランナーにしている。
     実行: dotnet run (project tests)   終了コード = 失敗数
   -->
   <PropertyGroup>
