@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>PostKun</AssemblyName>
+    <RootNamespace>PostKun</RootNamespace>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <!-- 本体は source/ のみコンパイルする。tests/ は別プロジェクトなので暗黙globから除外。 -->
+  <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
+  </ItemGroup>
+
+  <!-- テストから internal な純粋関数を参照できるようにする。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="PostKun.Tests" />
+  </ItemGroup>
+
+</Project>

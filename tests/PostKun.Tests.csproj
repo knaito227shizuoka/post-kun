@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    オフライン環境で xunit / MSTest のテスト SDK が NuGet 復元できないため、
+    依存パッケージゼロの自前ランナーにしている(open-folder と同じ方針)。
+    実行: dotnet run (project tests)   終了コード = 失敗数
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>PostKun.Tests</AssemblyName>
+    <RootNamespace>PostKun.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\post-kun.csproj" />
+  </ItemGroup>
+
+</Project>
