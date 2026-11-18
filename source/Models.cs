@@ -85,10 +85,17 @@ public class RequestDef
 
     /// <summary>「名前 のコピー」「名前 のコピー 2」… の重複しない名前を作る。</summary>
     public static string MakeCopyName(string name, IEnumerable<string> existing)
+        => MakeUniqueName($"{name} のコピー", existing);
+
+    /// <summary>「新規」で作るリクエストの名前。</summary>
+    public const string UntitledName = "無名のリクエスト";
+
+    /// <summary><paramref name="name"/> が空いていればそのまま、使われていれば「name 2」「name 3」… の空いている名前(大文字小文字無視)。</summary>
+    public static string MakeUniqueName(string name, IEnumerable<string> existing)
     {
         var used = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
-        var candidate = $"{name} のコピー";
-        for (var i = 2; used.Contains(candidate); i++) candidate = $"{name} のコピー {i}";
+        var candidate = name;
+        for (var i = 2; used.Contains(candidate); i++) candidate = $"{name} {i}";
         return candidate;
     }
 }

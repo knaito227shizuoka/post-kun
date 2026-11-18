@@ -30,6 +30,13 @@ public class MainForm : Form
     private bool _ignoreSelection;
     private CancellationTokenSource? _cts;
 
+    /// <summary>埋め込みリソースの post-kun.ico を読む(全サイズ入り。読めなければ null)。</summary>
+    private static Icon? LoadAppIcon()
+    {
+        using var stream = typeof(MainForm).Assembly.GetManifestResourceStream("PostKun.post-kun.ico");
+        return stream == null ? null : new Icon(stream);
+    }
+
     public MainForm()
     {
         Text          = Program.WindowTitle;   // 2個目の起動時に FindWindow で探すので変えない
@@ -39,6 +46,7 @@ public class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         KeyPreview    = true;
         Font          = new Font("Yu Gothic UI", 9.75f);
+        Icon          = LoadAppIcon() ?? Icon;   // タイトルバー・タスクバーのアイコン(exe のアイコンは csproj の ApplicationIcon)
 
         _requests = _storage.LoadRequests();
         _settings = _storage.Load<AppSettings>(Storage.SettingsFile);
@@ -145,6 +153,10 @@ public class MainForm : Form
         ["DELETE"] = Color.FromArgb(200, 40, 40),
     };
 
+    private static readonly Font MethodFont = new("Consolas", 8.5f, FontStyle.Bold);
+    /// <summary>一覧のメソッド列の幅(px)。0 なら次の描画で測り直す(一覧の作り直し時にリセット)。</summary>
+    private int _methodWidth;
+
     private void DrawListItem(object? sender, DrawItemEventArgs e)
     {
         if (e.Index < 0) return;
@@ -154,14 +166,19 @@ public class MainForm : Form
             e.Graphics.FillRectangle(bg, e.Bounds);
 
         var scale = DeviceDpi / 96.0;
-        var methodWidth = (int)(58 * scale);
         var pad = (int)(6 * scale);
-        var methodRect = new Rectangle(e.Bounds.X + pad, e.Bounds.Y, methodWidth, e.Bounds.Height);
+        if (_methodWidth == 0)
+        {
+            // メソッド列の幅 = 一覧にある最も長いメソッド名 + 少しの間隔(名前の開始位置はそろえる)
+            var widest = _list.Items.Cast<RequestDef>().Select(r => r.Method).DefaultIfEmpty("GET")
+                .Max(m => TextRenderer.MeasureText(e.Graphics, m, MethodFont, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width);
+            _methodWidth = widest + (int)(8 * scale);
+        }
+        var methodRect = new Rectangle(e.Bounds.X + pad, e.Bounds.Y, _methodWidth, e.Bounds.Height);
         var nameRect = new Rectangle(methodRect.Right, e.Bounds.Y, e.Bounds.Width - methodRect.Right - pad, e.Bounds.Height);
-        using var methodFont = new Font("Consolas", 8.5f, FontStyle.Bold);
         var color = MethodColors.TryGetValue(def.Method, out var c) ? c : Color.DimGray;
         const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
-        TextRenderer.DrawText(e.Graphics, def.Method, methodFont, methodRect, color, flags);
+        TextRenderer.DrawText(e.Graphics, def.Method, MethodFont, methodRect, color, flags | TextFormatFlags.NoPadding);
         TextRenderer.DrawText(e.Graphics, def.Name, _list.Font, nameRect, SystemColors.ControlText, flags);
     }
 
@@ -175,6 +192,7 @@ public class MainForm : Form
         _list.Items.Clear();
         _requests.Sort(RequestDef.ByName);
         foreach (var r in _requests) _list.Items.Add(r);
+        _methodWidth = 0;  // メソッドの種類が変わったかもしれないので測り直す
         _list.SelectedIndex = selectName == null ? -1 : _requests.FindIndex(r => r.Name == selectName);
         _list.EndUpdate();
         _ignoreSelection = false;
@@ -224,7 +242,15 @@ public class MainForm : Form
     private void NewRequest()
     {
         if (!ConfirmLeave()) return;
-        LoadIntoEditor(null);
+        // 「無名のリクエスト」(重複時は「… 2」)として一覧に追加し、すぐ保存する。名前は編集欄で変えて保存し直す。
+        var def = new RequestDef { Name = RequestDef.MakeUniqueName(RequestDef.UntitledName, _requests.Select(r => r.Name)) };
+        _requests.Add(def);
+        if (!TryWriteRequests())
+        {
+            _requests.Remove(def);
+            return;
+        }
+        LoadIntoEditor(def);
         _editor.FocusName();
     }
 
@@ -274,9 +300,11 @@ public class MainForm : Form
         }
         if (target.Name == _currentName)
         {
-            // 編集中のものを消したら、内容は残したまま「未保存の新規」にする
-            _currentName = null;
-            _snapshot = "";
+            // 編集中のものを消したら、一覧の先頭(名前順)を開く。1件もなければ空の新規。
+            // 消した内容を「未保存」で残すと、切替・終了時の「保存しますか?」で「はい」を押したときに復活してしまう。
+            _requests.Sort(RequestDef.ByName);
+            LoadIntoEditor(_requests.FirstOrDefault());
+            return;
         }
         RefreshList(_currentName);
         UpdateDirty();

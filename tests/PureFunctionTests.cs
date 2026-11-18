@@ -37,6 +37,7 @@ internal static class Program
         SplitQuery_Cases();
         Storage_Cases();
         Naming_Cases();
+        DefaultHeader_Cases();
         HttpSender_LocalServer_Cases().GetAwaiter().GetResult();
 
         Console.WriteLine();
@@ -310,11 +311,28 @@ internal static class Program
         }
     }
 
+    private static void DefaultHeader_Cases()
+    {
+        Section(nameof(RequestBuilder.DefaultHeaderForMethod));
+        string Show(KeyValueItem? h) => h == null ? "null" : $"{h.Key}={h.Value}";
+        Eq("Content-Type=application/json", Show(RequestBuilder.DefaultHeaderForMethod("POST", BodyType.None, Vars())));
+        Eq("Content-Type=application/json", Show(RequestBuilder.DefaultHeaderForMethod("post", BodyType.None, Vars(("Accept", "*/*", true)))));
+        Eq("null", Show(RequestBuilder.DefaultHeaderForMethod("GET", BodyType.None, Vars())));
+        Eq("null", Show(RequestBuilder.DefaultHeaderForMethod("PUT", BodyType.None, Vars())));
+        Eq("null", Show(RequestBuilder.DefaultHeaderForMethod("POST", BodyType.None, Vars((" content-type ", "text/plain", true)))));   // 既にある(大文字小文字・空白無視)
+        Eq("null", Show(RequestBuilder.DefaultHeaderForMethod("POST", BodyType.None, Vars(("Content-Type", "text/plain", false)))));    // 無効の行もあるとみなす
+        Eq("null", Show(RequestBuilder.DefaultHeaderForMethod("POST", BodyType.Form, Vars())));                                // フォームには付けない
+        Eq("Content-Type=application/json", Show(RequestBuilder.DefaultHeaderForMethod("POST", BodyType.Json, Vars())));
+    }
+
     private static void Naming_Cases()
     {
         Section("RequestDef naming");
         Eq("ログイン のコピー", RequestDef.MakeCopyName("ログイン", new[] { "ログイン" }));
         Eq("ログイン のコピー 3", RequestDef.MakeCopyName("ログイン", new[] { "ログイン", "ログイン のコピー", "ログイン のコピー 2" }));
+        Eq("無名のリクエスト", RequestDef.MakeUniqueName(RequestDef.UntitledName, new[] { "ログイン" }));
+        Eq("無名のリクエスト 3", RequestDef.MakeUniqueName(RequestDef.UntitledName, new[] { "無名のリクエスト", "無名のリクエスト 2" }));
+        Eq("x 2", RequestDef.MakeUniqueName("x", new[] { "X" }));                     // 大文字小文字無視
         var list = new[] { "b", "B2", "あ", "ア2", "a" }.Select(n => new RequestDef { Name = n }).ToList();
         list.Sort(RequestDef.ByName);
         Eq("a,b,B2,あ,ア2", string.Join(",", list.Select(r => r.Name)));       // 大文字小文字・かなの種類を無視
@@ -521,6 +539,17 @@ internal static class Program
         got = editor.GetRequest();
         Eq("http://h/p", got.Url);
         Eq("a=1|x=1|q=あ|z=2", string.Join("|", got.Params.Select(p => $"{p.Key}={p.Value}")));
+
+        // POST で読み込んだだけでは足さない / GET → POST に切り替えたら Content-Type を足す(2回目は足さない)
+        EqInt(0, got.Headers.Count);
+        var method = (ComboBox)typeof(RequestEditor).GetField("_method", flags)!.GetValue(editor)!;
+        method.SelectedItem = "GET";
+        method.SelectedItem = "POST";
+        Application.DoEvents();
+        Eq("Content-Type=application/json", string.Join("|", editor.GetRequest().Headers.Select(h => $"{h.Key}={h.Value}")));
+        method.SelectedItem = "GET";
+        method.SelectedItem = "POST";
+        EqInt(1, editor.GetRequest().Headers.Count);
 
         // ツリー操作: tags(配列)を選んで子を追加 → 値を入れる → 型をオブジェクトに変えて子を追加
         var tree = (BodyTreeGrid)typeof(RequestEditor).GetField("_body", flags)!.GetValue(editor)!;

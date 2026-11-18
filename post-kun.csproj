@@ -9,7 +9,14 @@
     <AssemblyName>PostKun</AssemblyName>
     <RootNamespace>PostKun</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- exe のアイコン(エクスプローラー・ショートカット)。生成は assets/make-icon.ps1 -->
+    <ApplicationIcon>assets\post-kun.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <!-- ウィンドウ(タイトルバー・タスクバー)用に同じアイコンを埋め込む。 -->
+  <ItemGroup>
+    <EmbeddedResource Include="assets\post-kun.ico" LogicalName="PostKun.post-kun.ico" />
+  </ItemGroup>
 
   <!-- 本体は source/ のみコンパイルする。tests/ は別プロジェクトなので暗黙globから除外。 -->
   <ItemGroup>

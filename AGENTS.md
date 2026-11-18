@@ -2,6 +2,8 @@
 - 日本語で絵文字を含めて返答します。
 - セッション開始時にこのファイルを読みます。コード構造を変えたら更新します。
 - 利用者向けの導入・使い方は `README.md`、編集者(AIエージェント)向けの運用知識・契約・今後の予定はこのファイルに書きます。
+- **コードを直したら、そのたびにビルド・テストが通ったあと `.\restart.ps1` を実行して `publish\PostKun\PostKun.exe` を更新します**(利用者はデスクトップのショートカットから publish 版を使っているため、`dotnet build` だけでは反映されない)。
+  - `restart.ps1` は起動中のアプリを保存確認なしで強制終了するので、未保存の編集は失われる。実行したことと、その注意を報告で伝える。
 
 # アプリ概要
 自作アプリ(ローカルの Web API など)へ GET / POST などを送ってレスポンスを確認する、通常ウィンドウ型の HTTP 試験ツール(C# / WinForms / net6.0-windows / 依存パッケージなし)。
@@ -31,6 +33,8 @@ dotnet run --project tests -- --ui     # 画面部品のスモークテスト(�
 - **Mutex 名** `Local\post-kun`。2個目のプロセスは `FindWindow(null, "post-kun")` で既存ウィンドウを探して前面化し、終了する。そのため **メインウィンドウのタイトルは `Program.WindowTitle`("post-kun")から変えない**(未保存マークもタイトルではなく編集欄の「● 未保存」ラベルで出す)。
 - **保存先** `%APPDATA%\post-kun\`: `requests.json`(`{ Requests: RequestDef[] }`)と `settings.json`(`AppSettings`: ウィンドウ位置・サイズ・最大化・左ペイン幅・編集欄の高さ・最後に開いていた名前)。JSON はインデント付き・PascalCase・enum は文字列・日本語はエスケープしない。書き込みは `.tmp` に書いてから置き換え、読めないファイルは `.bak` へ退避して空で続行。
 - **RequestDef スキーマ**: `Name, Method, Url, Params[]{Key,Value,Enabled}, Headers[]{…}, BodyType(None|Json|JsonArray|Form), BodyFields[]{Key,Value,Enabled,Type(String|Number|Boolean|Null|Object|Array),Children?}`。`Children` は Object/Array のときだけ持ち、それ以外は null(書き出さない)。プロパティ名・enum 名の変更は保存データを壊す。
+- **「新規」は即保存**: `RequestDef.UntitledName`(「無名のリクエスト」、重複時は `MakeUniqueName` で「… 2」「… 3」)の空のリクエストを一覧に追加して `requests.json` へ保存し、編集欄に開いて名前欄を全選択する。名前を変えて保存すると同じ項目が改名される(`_currentName` で元の項目を置き換え)。
+- **POST への切り替えで Content-Type を自動追加**: 利用者がメソッドを POST に変えたとき(`SetRequest` の読み込み中は除く)、`RequestBuilder.DefaultHeaderForMethod` が返す `Content-Type: application/json` をヘッダーの表に足す。Content-Type の行が既にある(無効でも)・ボディがフォームのときは足さない(表のヘッダーは Content の既定より優先されるため、フォームを JSON として送ってしまう)。
 - **一覧は常に名前順**(`RequestDef.ByName`: ja-JP、大文字小文字・全半角・かなの種類を無視、同順は序数比較)。名前の重複は大文字小文字無視で禁止。
 - **URL に ? は入れない**。URL 欄で `?` キーは拒否し、貼り付け等で入ったら `RequestBuilder.SplitQuery` でクエリをパラメータの表へ移す。読み込み時(`SetRequest`)も同様に分ける。
 - JSON ボディ: オブジェクト内でキーが空の行は未入力として飛ばす。配列の子のキーは使わない(表では `[0]` 表示)。読めない値・重複キーは「場所(`a.b[0].c`): 理由」でエラーにし、送信しない(`RequestBuildException`)。プレビューにも ⚠ で出す。整形(インデント2)した JSON をそのまま送る。
@@ -55,6 +59,7 @@ dotnet run --project tests -- --ui     # 画面部品のスモークテスト(�
   - `JsonFormatter.cs` : レスポンス JSON の整形(`TryFormat`)と Content-Type 判定
 - `tests` : `PureFunctionTests.cs`(純粋関数 + Storage + ローカルサーバ結合テスト、`--ui` で画面部品スモークテスト)
 - `restart.ps1` / `restart.bat` : publish 版の再ビルドと起動
+- `assets/post-kun.ico` : アプリアイコン(オレンジの角丸四角 + 白い紙飛行機、16〜256px)。`assets/make-icon.ps1` で生成(デザイン変更はスクリプトを直して再実行)。csproj の `ApplicationIcon`(exe・ショートカット)と `EmbeddedResource`(`MainForm.LoadAppIcon` でタイトルバー・タスクバー)の両方で使う
 
 # 実装上の注意
 - レイアウトは `AutoScaleMode.Dpi` + Dock / TableLayoutPanel / SplitContainer。表の列幅は `Fill` + `FillWeight`(比率)で決め、px 指定しない。
@@ -66,6 +71,7 @@ dotnet run --project tests -- --ui     # 画面部品のスモークテスト(�
 - 同じ理由で、表の `Changed` から呼ばれるプレビュー更新は `GetRequest(commit: false)` で読む。保存・送信の直前は `GetRequest()`(既定で入力中のセルを確定)。
 - BodyTreeGrid の型セルは `CellClick` で `BeginEdit` + `DroppedDown = true` して1クリックで開く(DataGridView 既定のコンボは複数回クリックが必要)。
 - 未保存判定は「読み込み・保存時の `Storage.Serialize` の結果」と現在の内容の比較。
+- 編集中のリクエストを削除したら一覧の先頭(名前順)を開く。1件もなければ空の新規(内容を未保存のまま残すと、切替・終了時の保存確認で「はい」を押したときに復活する)。
 - 送信ボタンは送信中「キャンセル」に変わり、同じボタン(または `Ctrl+Enter`)でキャンセルする。
 
 # 開発方針

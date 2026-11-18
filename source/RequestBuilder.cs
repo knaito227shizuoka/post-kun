@@ -332,4 +332,16 @@ public static class RequestBuilder
         missing = allMissing;
         return message;
     }
+
+    /// <summary>
+    /// メソッドを切り替えたときに自動で足すヘッダー。POST で Content-Type がまだ無ければ
+    /// <c>Content-Type: application/json</c>。足す必要がなければ null(無効の行も「ある」とみなす)。
+    /// フォーム形式のボディでは足さない(表のヘッダーが優先され、フォームを JSON として送ってしまうため)。
+    /// </summary>
+    public static KeyValueItem? DefaultHeaderForMethod(string method, BodyType bodyType, IEnumerable<KeyValueItem> headers)
+    {
+        if (!string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase) || bodyType == BodyType.Form) return null;
+        if (headers.Any(h => string.Equals(h.Key.Trim(), "Content-Type", StringComparison.OrdinalIgnoreCase))) return null;
+        return new KeyValueItem("Content-Type", "application/json", true);
+    }
 }

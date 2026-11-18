@@ -155,7 +155,13 @@ public sealed class RequestEditor : UserControl
     private void WireEvents()
     {
         _name.TextChanged += (_, _) => RaiseChanged();
-        _method.SelectedIndexChanged += (_, _) => RaiseChanged();
+        _method.SelectedIndexChanged += (_, _) =>
+        {
+            // 利用者が POST に切り替えたら Content-Type: application/json をヘッダーの表に足す(読み込み時は足さない)
+            if (!_loading && RequestBuilder.DefaultHeaderForMethod((string?)_method.SelectedItem ?? "", SelectedBodyType, _headers.GetItems()) is { } header)
+                _headers.AddItems(new[] { header });   // AddItems が Changed を出す
+            RaiseChanged();
+        };
         _url.KeyPress += OnUrlKeyPress;
         _url.TextChanged += OnUrlTextChanged;
         _send.Click += (_, _) => SendClicked?.Invoke(this, EventArgs.Empty);
@@ -260,7 +266,11 @@ public sealed class RequestEditor : UserControl
         _url.SelectAll();
     }
 
-    public void FocusName() => _name.Focus();
+    public void FocusName()
+    {
+        _name.Focus();
+        _name.SelectAll();  // 「無名のリクエスト」をそのまま打ち替えられるように
+    }
 
     private void RaiseChanged()
     {
